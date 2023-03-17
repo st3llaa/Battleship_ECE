@@ -1,0 +1,176 @@
+#include "bship.h"
+#include <stdio.h>
+#include <stdlib.h>
+
+/*
+building block #1: reading ship information: names and sizes
+   1. use the helper function: intitialize_ships() --> reads info from ship_info.txt --> makes array of type Ship
+   	pass in an array of type Ship of size FlEETSIZE
+
+building block #2: getting the ship placement
+   1. use helper function: get_placement_one_ship() --> reads info from ship_placement.txt --> returns the info of the next ship in the file
+	needs to be called multiple times to place all ships --> when there are no more ships in the file to read: returns -1
+	function passes info (pointer) to the Placement struct
+	*placement in the ship_placement.txt file are always valid (no overlaps)
+
+building block #3: getting coordinate of the shots
+   1. use the helper: ask_shot() --> returns user info as a struc of type coordinate
+	*assume user input is always valid
+   2. call helper repeatedly until the user enters (*) --> finishes the game
+	user enters (*) --> function returns (-1, -1) coordinate
+   3. call helper: msg_end() --> displays ending message
+
+building block #4: detecting when a ship is hit
+   1. determine when a shot hits a ship in a spot where it has not been hit before
+	if hit: use helper function: msg_hit() --> takes the name of the ship that was hit
+	if miss: use helper function: msg_miss()
+
+building block #5: detecting when a ship is sunk
+   1. use the helper: msg_sunk() --> takes string stored in dynamic array (msg_sunk() frees the memory)
+	contents of the dynamic array: "The ship that was sunk is NAME."
+   2. determine if the last ship sunk was the last ship on the board to be sunk
+	use helper function: msg_end() --> signals game is over
+ 
+*/
+
+void display(char board[][COLUMNS]){
+//ships are represented by sequential O's, hits are represented by x's
+	int i, j;
+	for(i = 0; i < ROWS; i++){
+		for(j = 0; j < COLUMNS; j++){
+			printf("%c", board[i][j]);
+		}
+		printf("\n");
+	}
+}
+
+//building black #2: reads ship_placement.txt file and places ships corespondingly on the board
+void ship_placement(Ship arr[], char board[][COLUMNS]){
+	Placement placement, *placementPtr;
+	placementPtr = &placement;
+
+	int xCurr, yCurr, i, len, condition;
+	condition = get_placement_one_ship(placementPtr);
+	while(condition != -1){ //while there are ships left to place
+	//assign one ship specific variables:
+		len = arr[condition].length;
+		xCurr = placement.coord.x;
+		yCurr = placement.coord.y;
+	
+	//check whether boat is horizontal or vertical
+		if(placement.orientation == 'H'){ //horizontal
+			for(i = 0; i < len; i++){
+				board[ROWS - yCurr-1][xCurr+i] = '0'+condition;
+			}
+		}
+		else{ //vertical
+			for(i = 0; i < len; i++){
+				board[ROWS - yCurr-i-1][xCurr] = '0'+condition;
+			}
+		}
+		condition = get_placement_one_ship(placementPtr);
+		                                                              
+	}
+}
+
+//buildiung block #4: check if shot is hit or miss
+int hit_or_miss(char board[][COLUMNS], Coordinate shotCoord, Ship ships[]){
+	int shotX, shotY, i, boat;
+	shotX = shotCoord.x;
+	shotY = shotCoord.y;
+	boat = -1;
+	if(board[ROWS - shotY-1][shotX] != '-'){ //shotCoord matches ship
+		boat = board[ROWS - shotY-1][shotX] - '0';
+		char boatName[20];
+		for(i=0; i< 20; i++){
+			boatName[i] = ships[boat].name[i];
+		}
+		board[ROWS - shotY-1][shotX] = 'X'; //updating board to show hit
+		msg_hit(boatName);
+	}
+	else{
+		msg_miss();
+	}
+	return boat;
+}
+
+//building block #5: check if ship is sunk
+void check_sunk(char board[][COLUMNS], Ship ships[], int lastHit){
+	int i, j, x;
+	int sunk = -1; //not sunk = -1, sunk = 1
+	for(i = 0; i < ROWS; i++){
+		for(j = 0; j<COLUMNS; j++){
+			if(board[i][j] != lastHit){
+				sunk = 1;
+			}
+			else{
+				sunk = -1;
+			}
+		}	
+	}
+	//get name of the ship
+	char boatName[20];
+	for(x=0; x< 20; x++){
+		boatName[x] = ships[lastHit].name[x];
+	}
+
+//dynamic memory allocation
+	char message[49] = "The ship that was sunk is a ";
+	//appending boat name to the message string
+	for(i =28; boatName[i-28] != '\0'; i++){
+		message[i] = boatName[i-28];
+	}
+	message[i] = '.';
+	message[i+1] = '\0';
+
+	//get the length of the finished message
+	int lenMessage = 0;
+	while(message[lenMessage] != '\0'){
+		lenMessage++;
+	}
+	//assigning message to the allocated memory
+	char *messagePtr = (char*)calloc(lenMessage, sizeof(char));
+	int ind;
+	for(ind=0; message[ind] != '\0'; ind++){
+		messagePtr[ind] = message[ind];
+	}
+	//null pointer error: memory allocation failed
+	if(messagePtr == NULL){
+		printf("Error: could not allocate the memory \n");
+	}
+//final output check
+	if(sunk == 1 && messagePtr != NULL){
+		//printf("%s\n", message);
+		msg_sunk(messagePtr);
+	}
+}
+
+
+
+int main(void){
+	char board[ROWS][COLUMNS] = {   {'-', '-', '-', '-', '-', '-', '-', '-'},
+					{'-', '-', '-', '-', '-', '-', '-', '-'},
+					{'-', '-', '-', '-', '-', '-', '-', '-'},
+					{'-', '-', '-', '-', '-', '-', '-', '-'},
+					{'-', '-', '-', '-', '-', '-', '-', '-'},
+					{'-', '-', '-', '-', '-', '-', '-', '-'}  };
+//building block #1: ship info
+	Ship ships[FLEETSIZE]; //array of ships
+	initialize_ships(ships);
+
+//building block #2: ship placement
+	ship_placement(ships, board);
+	display(board);
+
+//building block #3: shot coordinates
+	Coordinate shotCoord = ask_shot();
+	while(shotCoord.x != -1 && shotCoord.y != -1){
+		int boatHit = hit_or_miss(board, shotCoord, ships);
+		if(boatHit != -1){ //check if there was a sink 
+			check_sunk(board, ships, boatHit);
+		}
+		shotCoord = ask_shot();
+	}
+	msg_end();	
+}
+	
