@@ -1,4 +1,4 @@
-// ********************************************************************
+ged// ********************************************************************
 // Constants: 
 //      ROWS and COLUMNS: The dimensions of the gameboard
 //      FLEETSIZE:        The number of different ship types
